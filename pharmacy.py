@@ -2,6 +2,7 @@ import numpy as np
 from heapq import heappush, heappop
 import copy
 import csv
+import threading
 
 from GUI import GUI
 
@@ -55,14 +56,14 @@ class Randomizer:
         self.__profits = []
         self.__average_drugs_in_order = 3
         self.__order_var = 1
-        self.__sale_proba = None
+        self.__card_proba = None
         self.__max_card_id = 10000
         self.__min_wainting_time = 1
         self.__max_waiting_time = 3
         self.__order_scale = None
 
-    def init_user_params(self, sale_proba, order_scale):
-        self.__sale_proba = sale_proba
+    def init_user_params(self, card_proba, order_scale):
+        self.__card_proba = card_proba
         self.__order_scale = order_scale
 
     def init_params(self, prices, profits):
@@ -111,7 +112,7 @@ class Randomizer:
         return meta, card_id, ordered_drugs_ids
 
     def __generate_card_id(self):
-        if np.random.binomial(1, self.__sale_proba):
+        if np.random.binomial(1, self.__card_proba):
             return np.random.randint(1, self.__max_card_id)
         return None
 
@@ -127,20 +128,19 @@ class Randomizer:
 class Env:
     def __init__(self, GUI, randomizer_cls, drugs_file, orders_file):
         self.GUI = GUI
-        params = self.GUI.get_randomizer_params()
+        self.__drugs_names = []
         names, prices, profits, quants, life = self.__load_drugs_info(drugs_file)
-        recurring_orders = self.__load_drugs_info(orders_file)
-        self.randomizer = randomizer_cls(params)
+        recurring_orders = self.__load_orders_info(orders_file)
+        self.randomizer = randomizer_cls() # todo - init
         self.randomizer.init_params(prices, profits)
         self.pharmacy = Pharmacy(names, prices, profits, quants, life, recurring_orders)
-        self.__drugs_names = []
 
         self.cur_day = 0
         self.n_days = None
         self.order_history = []
 
     def init_user_parameters(self, params):
-        card_proba = params.sale_proba
+        card_proba = params.card_proba
         orders_scale = params.orders_scale
         couriers = params.couriers
         card_sale = params.card_sale
@@ -178,6 +178,7 @@ class Env:
                 drugs = {}
                 drugs_pos = line[0].split('.')
                 for drug in drugs_pos:
+                    #print(drug.split(','))
                     drug_name, drug_quant = drug.split(',')
                     drugs[drug_name] = int(drug_quant)
 
@@ -194,7 +195,8 @@ class Env:
         generated_info_list = self.randomizer.start_new_day()
         for meta, card_id, drugs_ids in generated_info_list:
             drugs = {}
-            for drug_id, drug_num in drugs_ids:
+            for drug_id, drug_num in drugs_ids.items():
+                print(drug_id, drug_num)
                 drugs[self.__drugs_names[drug_id]] = drug_num
             orders_list.append(ClientOrder(meta, card_id, drugs))
         return orders_list
@@ -220,7 +222,7 @@ class Env:
             self.randomizer.update_profits(over_prices)
 
             stats = self.pharmacy.get_statistic()
-            self.GUI.show_tmp_statstic(stats)
+            self.GUI.show_tmp_statistic(stats)
         final_stats = self.pharmacy.get_final_stats()
         self.GUI.show_final_statistic(final_stats)
 
@@ -250,6 +252,7 @@ class Pharmacy:
     def __init__(self, names, base_prices, profits, quant, lifes, recurring_params):
         self.__drug_info_list = {}
         for drug_info in zip(names, base_prices, profits, quant, lifes):
+            print(drug_info)
             self.__drug_info_list[drug_info[0]] = DrugInfo(drug_info)
 
         self.__drug_store = {}  # dict(drug_name;DrugBatchList)
@@ -282,31 +285,33 @@ class Pharmacy:
         self.__min_quant_to_reorder = quant_to_reorder
 
     def __init_store(self):
-        for drug_info in self.__drug_info_list:
+        for drug_info in self.__drug_info_list.items():
             name = drug_info[0]
             quant = drug_info[1].standard_quantity
             valid_to = self.__cur_day+drug_info[1].shelf_life
             self.__drug_store[name] = [DrugBatch(name, quant, valid_to)]
 
-    def __init_recurring_orders(self, params):
+    def __init_recurring_orders(self, params_list):
         # drugs;period;client;address;phone;id
-        meta = params[2:-1]
-        card_id = params[-1]
-        period = params[1]
-        drugs = params[0]
-        self.__recurring_orders.append(RecurringOrder(meta, card_id, drugs, period))
+        for params in params_list:
+            print(params)
+            meta = params[2:-1]
+            card_id = params[-1]
+            period = params[1]
+            drugs = params[0]
+            self.__recurring_orders.append(RecurringOrder(meta, card_id, drugs, period))
 
     def get_prices(self):
         prof = []
-        for drug in self.__drug_info_list:
-            prof.append(drug.cur_profit)
+        for drug_info in self.__drug_info_list.values():
+            prof.append(drug_info.cur_profit)
         return prof
 
     def new_day(self, client_orders):
         # todo ret: stats, out_orders, new_prices
         self.__stats = DailyStat()
         self.__stats.courier_max_cap = self.__courier_max_cap
-        queue = client_orders
+        queue = client_orders[:]
         today_delivered = 0
         self.__cur_day += 1
 
@@ -332,7 +337,7 @@ class Pharmacy:
         for order in self.__recurring_orders:
             if order.last_order is None or self.__cur_day - order.last_order >= order.period:
                 order.last_order = self.__cur_day
-                orders.append(order.get_client_order)
+                orders.append(order.get_client_order())
         return orders
 
     def get_drugs_orders(self):
@@ -433,8 +438,9 @@ class Pharmacy:
 
     def __get_drug_from_store(self, name, needed):
         total = 0
+        print(needed)
         drug_batch_list = self.__drug_store[name]
-        while drug_batch_list or total < needed:
+        while drug_batch_list and total < needed:
             cur_batch = drug_batch_list[0]
             from_cur_batch = min(needed-total, cur_batch.quantity)
             if from_cur_batch == cur_batch.quantity:
@@ -454,6 +460,10 @@ if __name__ == '__main__':
 
     gui = GUI('GUI', 'org.beeware.gui')
     randomizer = Randomizer
+    wait_event = threading.Event()
+    set_event = threading.Event()
+    e3 = threading.Event()
+
     env = Env(GUI=gui, randomizer_cls=randomizer, drugs_file=drugs_file, orders_file=orders_file)
     gui.init_env(env)
     gui.main_loop()

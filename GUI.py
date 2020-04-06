@@ -48,15 +48,17 @@ class GUI(toga.App):
         split.content = [self.drugs_daily_table, right_container]
 
         self.main_window.content = split
+        print('c')
         self.main_window.show()
 
     def show_tmp_statistic(self, stat):
+        print('s')
         self.new_day_flag = False
 
-        drug_dict = stat.stats_from_store
+        drug_dict = stat.drugs_at_store
         couriers_max = stat.courier_max_cap
         couriers_cur = stat.today_delivered
-        orders = stat.orders_to_deliver
+        orders = stat.delivered_orders
         self.drugs_daily_table.data = list(drug_dict.items())
         self.drugs_daily_table.refresh()
 
@@ -73,7 +75,7 @@ class GUI(toga.App):
         profit = stat.total_profit
         lost = stat.lost_shelf_life
         couriers = [c/stat.courier_max_cap for c in stat.delivered_history]
-        self.main_window = toga.MainWindow(title='final stats')
+        self.st_window = toga.Window(title='final stats')
 
         self.drugs_daily_table = toga.Table(headings=['couriers'], data=couriers)
 
@@ -93,8 +95,9 @@ class GUI(toga.App):
 
         split.content = [self.drugs_daily_table, right_container]
 
-        self.main_window.content = split
-        self.main_window.show()
+        self.st_window.content = split
+        self.st_window.close()
+
 
     def startup(self):
         # paraams init
@@ -145,16 +148,16 @@ class GUI(toga.App):
                 self.start_flag = True
 
                 params.n_days = int(n_days_input.value)
-                params.prob_card = float(prob_card_input.value)
+                params.card_proba = float(prob_card_input.value)
                 params.orders_scale = float(orders_scale_input.value)
                 params.card_sale = float(sale_input.value) / 100.0
                 params.couriers = int(n_days_input.value)
                 params.quant_to_reorder = int(n_to_reorder_input.value)
 
-                self.env.init_user_parameters(params)
+                #self.env.init_user_parameters(params)
                 self.create_tmp_stat()
-
-                self.env.start_emulation()
+                time.sleep(100)
+                #self.env.start_emulation()
 
         button = toga.Button('start emulation', on_press=__start_button_handler)
         button.style.padding = 50
@@ -163,6 +166,7 @@ class GUI(toga.App):
 
         self.main_window.content = main_box
         self.main_window.show()
+
 
     def get_initial_params(self):
         pass
