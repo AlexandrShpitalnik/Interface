@@ -1,6 +1,5 @@
 import toga
 from toga.style.pack import *
-import time
 
 
 class GUI(toga.App):
@@ -10,6 +9,7 @@ class GUI(toga.App):
         self.cur_couriers_label = None
         self.max_couriers_label = None
         self.drugs_daily_table = None
+        self.input_flag = False
         self.start_flag = False
         self.new_day_flag = False
 
@@ -20,25 +20,25 @@ class GUI(toga.App):
         # todo - add button handler
         self.main_window = toga.MainWindow(title='daily stats')
 
-        data = [('a', 1)]
+        data = []
         self.drugs_daily_table = toga.Table(headings=['drugs', 'quantity'], data=data)
 
         right_container = toga.Box()
         right_container.style.update(direction=COLUMN, padding_top=50)
 
-        self.cur_couriers_label = toga.Label('cur couriers '+str(20), style=Pack(text_align=RIGHT))
+        self.cur_couriers_label = toga.Label('cur couriers ', style=Pack(text_align=RIGHT))
         cur_couriers_box = toga.Box(children=[self.cur_couriers_label])
         cur_couriers_box.style.padding = 50
         right_container.add(cur_couriers_box)
-        self.max_couriers_label = toga.Label('max_couriers '+str(26), style=Pack(text_align=RIGHT))
+        self.max_couriers_label = toga.Label('max couriers ', style=Pack(text_align=RIGHT))
         max_couriers_box = toga.Box(children=[self.max_couriers_label])
         max_couriers_box.style.padding = 50
         right_container.add(max_couriers_box)
 
-        def flag_switch():
-            self.new_day_flag = True
+        def next_day_handler(widget):
+            self.env.start_next_day()
 
-        button = toga.Button('start new day', on_press=flag_switch())
+        button = toga.Button('start new day', on_press=next_day_handler)
         button.style.padding = 100
         button.style.width = 300
         right_container.add(button)
@@ -48,12 +48,9 @@ class GUI(toga.App):
         split.content = [self.drugs_daily_table, right_container]
 
         self.main_window.content = split
-        print('c')
         self.main_window.show()
 
     def show_tmp_statistic(self, stat):
-        print('s')
-        self.new_day_flag = False
 
         drug_dict = stat.drugs_at_store
         couriers_max = stat.courier_max_cap
@@ -68,12 +65,9 @@ class GUI(toga.App):
         self.cur_couriers_label.text = 'cur couriers' + str(couriers_cur)
         self.max_couriers_label.refresh()
 
-        while not self.new_day_flag:
-            time.sleep(1)
-
-    def create_final_stats(self, stat):
-        profit = stat.total_profit
-        lost = stat.lost_shelf_life
+    def show_final_statistic(self, stat):
+        profit = int(stat.total_profit)
+        lost = stat.total_lost
         couriers = [c/stat.courier_max_cap for c in stat.delivered_history]
         self.st_window = toga.Window(title='final stats')
 
@@ -96,11 +90,10 @@ class GUI(toga.App):
         split.content = [self.drugs_daily_table, right_container]
 
         self.st_window.content = split
-        self.st_window.close()
+        self.st_window.show()
 
 
     def startup(self):
-        # paraams init
         self.main_window = toga.MainWindow(title='params')
 
         main_box = toga.Box()
@@ -144,8 +137,8 @@ class GUI(toga.App):
 
             params = Params()
 
-            if not self.start_flag:
-                self.start_flag = True
+            if not self.input_flag:
+                self.input_flag = True
 
                 params.n_days = int(n_days_input.value)
                 params.card_proba = float(prob_card_input.value)
@@ -154,10 +147,9 @@ class GUI(toga.App):
                 params.couriers = int(n_days_input.value)
                 params.quant_to_reorder = int(n_to_reorder_input.value)
 
-                #self.env.init_user_parameters(params)
+                self.env.init_user_parameters(params)
                 self.create_tmp_stat()
-                time.sleep(100)
-                #self.env.start_emulation()
+                #self.env.start_next_day()
 
         button = toga.Button('start emulation', on_press=__start_button_handler)
         button.style.padding = 50
