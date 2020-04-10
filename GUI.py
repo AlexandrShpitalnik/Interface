@@ -12,6 +12,7 @@ class GUI(toga.App):
         self.input_flag = False
         self.start_flag = False
         self.new_day_flag = False
+        self.st_window = None
 
     def init_env(self, env):
         self.env = env
@@ -92,7 +93,6 @@ class GUI(toga.App):
         self.st_window.content = split
         self.st_window.show()
 
-
     def startup(self):
         self.main_window = toga.MainWindow(title='params')
 
@@ -149,7 +149,6 @@ class GUI(toga.App):
 
                 self.env.init_user_parameters(params)
                 self.create_tmp_stat()
-                #self.env.start_next_day()
 
         button = toga.Button('start emulation', on_press=__start_button_handler)
         button.style.padding = 50
@@ -160,17 +159,5 @@ class GUI(toga.App):
         self.main_window.show()
 
 
-    def get_initial_params(self):
-        pass
-
-
 def main():
     return GUI('GUI', 'org.beeware.gui')
-
-
-# if __name__ == '__main__':
-#    gui = GUI('GUI', 'org.beeware.gui')
-#    randomizer = Randomizer
-#    env = Env(gui=gui, randomizer, file_drugs, file_orders)
-#    gui.init_env(env)
-#    gui.main_loop()

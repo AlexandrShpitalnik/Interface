@@ -1,5 +1,4 @@
 import numpy as np
-from heapq import heappush, heappop
 import copy
 import csv
 
@@ -82,9 +81,7 @@ class Randomizer:
 
     def start_new_day(self):
         average_boughts = np.apply_along_axis(self.__price_to_clients, axis=0, arr=[self.__base_prices, self.__profits])
-        print(average_boughts, 'av')
         bought_drugs = np.random.poisson(average_boughts)
-        print(bought_drugs)
         generated_orders_info = []
         while True:
             meta, card_id, ordered_drugs_ids = self.__generate_order_info(bought_drugs)
@@ -132,7 +129,7 @@ class Env:
         self.__drugs_names = []
         names, prices, profits, quants, life = self.__load_drugs_info(drugs_file)
         recurring_orders = self.__load_orders_info(orders_file)
-        self.randomizer = randomizer_cls() # todo - init
+        self.randomizer = randomizer_cls()# todo - init
         self.randomizer.init_params(prices, profits)
         self.pharmacy = Pharmacy(names, prices, profits, quants, life, recurring_orders)
 
@@ -308,7 +305,6 @@ class Pharmacy:
         prof = []
         for drug_info in self.__drug_info_list.values():
             prof.append(drug_info.cur_profit)
-        print(prof)
         return prof
 
     def new_day(self, client_orders):
@@ -350,7 +346,6 @@ class Pharmacy:
 
     def deliver_drugs(self, drug_names):
         for drug in drug_names:
-            print(drug, 'd')
             shelf_life = self.__drug_info_list[drug].shelf_life
             standard_quantity = self.__drug_info_list[drug].standard_quantity
             new_batch = DrugBatch(drug, standard_quantity, shelf_life+self.__cur_day)
@@ -381,7 +376,6 @@ class Pharmacy:
             drug_info.cur_profit = drug_info.base_profit
 
     def __process_orders(self, orders):
-        #todo profit
         ready_orders = []
         for order in orders:
             order_base_income = 0
@@ -426,14 +420,12 @@ class Pharmacy:
             while drug_batches and drug_batches[0].valid_to == self.__cur_day-1:
                 self.__lost_shelf_life += drug_batches[0].quantity * base_price
                 drug_batches.pop(0)
-                print(drug_name, 'lost')
             if drug_batches and drug_batches[0].valid_to - self.__cur_day <= 29:
                 drug_info = self.__drug_info_list[drug_name]
                 if drug_info.cur_price == drug_info.base_price * drug_info.base_profit:
                     add_sale_names.append(drug_name)
             if drug_batches == [] or drug_batches[0].valid_to - self.__cur_day > 29:
                 drug_info = self.__drug_info_list[drug_name]
-                # todo rewrite?
                 if drug_info.cur_price < drug_info.base_price * drug_info.base_profit:
                     remove_sale_names.append(drug_name)
             drug_sum = 0
@@ -441,7 +433,6 @@ class Pharmacy:
                 drug_sum += drug_batch.quantity
             if drug_name not in self.__waiting_to_store and drug_sum <= self.__min_quant_to_reorder:
                 pharmacy_orders.append(PharmacyOrder(drug_name))
-                print(drug_name)
                 self.__waiting_to_store.append(drug_name)
             drugs_quant[drug_name] = drug_sum
 
@@ -464,13 +455,9 @@ class Pharmacy:
 if __name__ == '__main__':
     drugs_file = 'drugs.txt'
     orders_file = 'reccuring.txt'
-    #names_file = "names.csv"
-    #phones_file = 'phones.csv'
-    #address_file = 'address.csv'
 
     gui = GUI('GUI', 'org.beeware.gui')
     randomizer = Randomizer
     env = Env(GUI=gui, randomizer_cls=randomizer, drugs_file=drugs_file, orders_file=orders_file)
     gui.init_env(env)
     gui.main_loop()
-    #Env.load_random_names(names_file, phones_file, address_file)
