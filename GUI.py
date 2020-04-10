@@ -144,7 +144,7 @@ class GUI(toga.App):
                 params.card_proba = float(prob_card_input.value)
                 params.orders_scale = float(orders_scale_input.value)
                 params.card_sale = float(sale_input.value) / 100.0
-                params.couriers = int(n_days_input.value)
+                params.couriers = int(n_couriers_input.value)
                 params.quant_to_reorder = int(n_to_reorder_input.value)
 
                 self.env.init_user_parameters(params)

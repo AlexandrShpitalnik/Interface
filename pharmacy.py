@@ -129,7 +129,7 @@ class Env:
         self.__drugs_names = []
         names, prices, profits, quants, life = self.__load_drugs_info(drugs_file)
         recurring_orders = self.__load_orders_info(orders_file)
-        self.randomizer = randomizer_cls()# todo - init
+        self.randomizer = randomizer_cls()
         self.randomizer.init_params(prices, profits)
         self.pharmacy = Pharmacy(names, prices, profits, quants, life, recurring_orders)
 
@@ -266,7 +266,7 @@ class Pharmacy:
         self.__max_sale = 0.09
 
         self.__couriers = None
-        self.__max_courier_orders = 7
+        self.__max_courier_orders = 15
         self.__courier_max_load = None
         self.__delivered_history = []
 
@@ -452,12 +452,3 @@ class Pharmacy:
         return total
 
 
-if __name__ == '__main__':
-    drugs_file = 'drugs.txt'
-    orders_file = 'reccuring.txt'
-
-    gui = GUI('GUI', 'org.beeware.gui')
-    randomizer = Randomizer
-    env = Env(GUI=gui, randomizer_cls=randomizer, drugs_file=drugs_file, orders_file=orders_file)
-    gui.init_env(env)
-    gui.main_loop()
