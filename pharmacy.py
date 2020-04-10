@@ -235,7 +235,7 @@ class PharmacyOrder:
 class DailyStat:
     def __init__(self):
         self.drugs_at_store = {}
-        self.courier_max_cap = 0
+        self.courier_max_load = 0
         self.today_delivered = 0
         self.delivered_orders = []
 
@@ -244,7 +244,7 @@ class FinalStat:
     def __init__(self):
         self.total_profit = 0
         self.total_lost = 0
-        self.courier_max_cap = 0
+        self.courier_max_load = 0
         self.delivered_history = []
 
 
@@ -267,7 +267,7 @@ class Pharmacy:
 
         self.__couriers = None
         self.__max_courier_orders = 7
-        self.__courier_max_cap = None
+        self.__courier_max_load = None
         self.__delivered_history = []
 
         self.__min_quant_to_reorder = None
@@ -283,7 +283,7 @@ class Pharmacy:
         self.__couriers = couriers
         self.__card_sale = card_sale
         self.__min_quant_to_reorder = quant_to_reorder
-        self.__courier_max_cap = self.__couriers * self.__max_courier_orders
+        self.__courier_max_load = self.__couriers * self.__max_courier_orders
 
     def __init_store(self):
         for drug_info in self.__drug_info_list.items():
@@ -310,7 +310,7 @@ class Pharmacy:
     def new_day(self, client_orders):
         # todo ret: stats, out_orders, new_prices
         self.__stats = DailyStat()
-        self.__stats.courier_max_cap = self.__courier_max_cap
+        self.__stats.courier_max_load = self.__courier_max_load
         queue = client_orders[:]
         today_delivered = 0
         self.__cur_day += 1
@@ -318,7 +318,7 @@ class Pharmacy:
         queue += self.__proc_recurring_orders()
 
         orders_to_deliver = self.__process_orders(queue)
-        while today_delivered < len(orders_to_deliver) and today_delivered < self.__courier_max_cap:
+        while today_delivered < len(orders_to_deliver) and today_delivered < self.__courier_max_load:
             orders_to_deliver[today_delivered].if_delivered = True
             self.__total_profit += orders_to_deliver[today_delivered].total_profit
             today_delivered += 1
@@ -358,7 +358,7 @@ class Pharmacy:
     def get_final_stats(self):
         stat = FinalStat()
         stat.delivered_history = self.__delivered_history
-        stat.courier_max_cap = self.__courier_max_cap
+        stat.courier_max_load = self.__courier_max_load
         stat.total_profit = self.__total_profit
         stat.total_lost = self.__lost_shelf_life
         return stat

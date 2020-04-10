@@ -54,22 +54,22 @@ class GUI(toga.App):
     def show_tmp_statistic(self, stat):
 
         drug_dict = stat.drugs_at_store
-        couriers_max = stat.courier_max_cap
+        couriers_max = stat.courier_max_load
         couriers_cur = stat.today_delivered
         orders = stat.delivered_orders
         self.drugs_daily_table.data = list(drug_dict.items())
         self.drugs_daily_table.refresh()
 
-        self.max_couriers_label.text = 'max couriers '+str(couriers_max)
+        self.max_couriers_label.text = 'max load '+str(couriers_max)
         self.max_couriers_label.refresh()
 
-        self.cur_couriers_label.text = 'cur couriers' + str(couriers_cur)
+        self.cur_couriers_label.text = 'cur load' + str(couriers_cur)
         self.max_couriers_label.refresh()
 
     def show_final_statistic(self, stat):
         profit = int(stat.total_profit)
         lost = stat.total_lost
-        couriers = [c/stat.courier_max_cap for c in stat.delivered_history]
+        couriers = [c/stat.courier_max_load for c in stat.delivered_history]
         self.st_window = toga.Window(title='final stats')
 
         self.drugs_daily_table = toga.Table(headings=['couriers'], data=couriers)
