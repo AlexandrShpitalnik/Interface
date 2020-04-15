@@ -4,7 +4,6 @@ import csv
 
 from GUI import GUI
 
-
 class ClientOrder:
     def __init__(self, meta, card_id, drugs, loyal_client=False):
         self.client_name = meta[0]
@@ -54,14 +53,13 @@ class Randomizer:
         self.__profits = []
         self.__average_drugs_in_order = 3
         self.__order_var = 1
-        self.__card_proba = None
+        self.__card_proba = 0.3
         self.__max_card_id = 10000
         self.__min_wainting_time = 1
         self.__max_waiting_time = 3
         self.__order_scale = None
 
-    def init_user_params(self, card_proba, order_scale):
-        self.__card_proba = card_proba
+    def init_user_params(self, order_scale):
         self.__order_scale = order_scale
 
     def init_params(self, prices, profits):
@@ -139,13 +137,13 @@ class Env:
         self.pharmacy_orders_queue = []
 
     def init_user_parameters(self, params):
-        card_proba = params.card_proba
+        # card_proba = params.card_proba
         orders_scale = params.orders_scale
         couriers = params.couriers
         card_sale = params.card_sale
         quant_to_reorder = params.quant_to_reorder
         self.n_days = params.n_days
-        self.randomizer.init_user_params(card_proba, orders_scale)
+        self.randomizer.init_user_params(orders_scale)
         self.pharmacy.init_user_params(couriers, card_sale, quant_to_reorder)
 
     def __load_drugs_info(self, filename):
@@ -198,32 +196,43 @@ class Env:
             orders_list.append(ClientOrder(meta, card_id, drugs))
         return orders_list
 
-    def start_next_day(self):
-        if self.cur_day < self.n_days:
-            delivered_drugs = []
-            while self.pharmacy_orders_queue != [] and self.pharmacy_orders_queue[0][0] == self.cur_day:
-                delivered_order = self.pharmacy_orders_queue.pop(0)[1]
-                delivered_drugs.append(delivered_order.drug)
-            self.pharmacy.deliver_drugs(delivered_drugs)
+    def __daily_routine(self):
+        delivered_drugs = []
+        while self.pharmacy_orders_queue != [] and self.pharmacy_orders_queue[0][0] == self.cur_day:
+            delivered_order = self.pharmacy_orders_queue.pop(0)[1]
+            delivered_drugs.append(delivered_order.drug)
+        self.pharmacy.deliver_drugs(delivered_drugs)
 
-            orders = self.__generate_client_orders()
-            self.pharmacy.new_day(orders)
+        orders = self.__generate_client_orders()
+        self.pharmacy.new_day(orders)
 
-            pharmacy_orders = self.pharmacy.get_drugs_orders()
-            for order in pharmacy_orders:
-                delivery_date = self.cur_day + self.randomizer.generate_waiting_time()
-                self.pharmacy_orders_queue.append((delivery_date, order))
-            self.pharmacy_orders_queue = sorted(self.pharmacy_orders_queue, key=lambda x: x[0])
+        pharmacy_orders = self.pharmacy.get_drugs_orders()
+        for order in pharmacy_orders:
+            delivery_date = self.cur_day + self.randomizer.generate_waiting_time()
+            self.pharmacy_orders_queue.append((delivery_date, order))
+        self.pharmacy_orders_queue = sorted(self.pharmacy_orders_queue, key=lambda x: x[0])
 
-            over_prices = self.pharmacy.get_prices()
-            self.randomizer.update_profits(over_prices)
+        profits = self.pharmacy.get_profits()
+        self.randomizer.update_profits(profits)
 
-            stats = self.pharmacy.get_statistic()
-            self.GUI.show_tmp_statistic(stats)
+        stats = self.pharmacy.get_statistic()
+        return stats
 
-            self.cur_day += 1
+    def start_next_day(self, no_tmp=False):
+        if not no_tmp:
+            if self.cur_day < self.n_days:
+                stats = self.__daily_routine()
+                self.GUI.show_tmp_statistic(stats)
+                self.cur_day += 1
+            else:
+                final_stats = self.pharmacy.get_final_stats()
+                self.GUI.show_final_statistic(final_stats)
         else:
+            for _ in range(self.n_days):
+                _ = self.__daily_routine()
+                self.cur_day += 1
             final_stats = self.pharmacy.get_final_stats()
+            print(final_stats)
             self.GUI.show_final_statistic(final_stats)
 
 
@@ -234,6 +243,7 @@ class PharmacyOrder:
 
 class DailyStat:
     def __init__(self):
+        self.cur_day = 0
         self.drugs_at_store = {}
         self.courier_max_load = 0
         self.today_delivered = 0
@@ -268,7 +278,7 @@ class Pharmacy:
         self.__couriers = None
         self.__max_courier_orders = 15
         self.__courier_max_load = None
-        self.__delivered_history = []
+        self.__to_deliver_history = []
 
         self.__min_quant_to_reorder = None
         self.__recurring_orders = []
@@ -301,7 +311,7 @@ class Pharmacy:
             drugs = params[0]
             self.__recurring_orders.append(RecurringOrder(meta, card_id, drugs, period))
 
-    def get_prices(self):
+    def get_profits(self):
         prof = []
         for drug_info in self.__drug_info_list.values():
             prof.append(drug_info.cur_profit)
@@ -317,19 +327,22 @@ class Pharmacy:
 
         queue += self.__proc_recurring_orders()
 
-        orders_to_deliver = self.__process_orders(queue)
+        orders_to_deliver, drugs_ordered = self.__process_orders(queue)
         while today_delivered < len(orders_to_deliver) and today_delivered < self.__courier_max_load:
             orders_to_deliver[today_delivered].if_delivered = True
             self.__total_profit += orders_to_deliver[today_delivered].total_profit
             today_delivered += 1
 
-        self.__delivered_history.append(today_delivered)
+        self.__to_deliver_history.append(len(orders_to_deliver))
+        self.__stats.cur_day = self.__cur_day
+        self.__stats.today_ordered = len(orders_to_deliver)
         self.__stats.today_delivered = today_delivered
         self.__stats.delivered_orders = orders_to_deliver[:today_delivered]
         orders_form_pharmacy, add_sale, remove_sale, stats_from_store = self.__check_store()
         self.__orders_from_pharmacy = orders_form_pharmacy
-        self.__stats.drugs_at_store = stats_from_store
-        self.__update_prices(add_sale, remove_sale)
+        new_prices = self.__update_prices(add_sale, remove_sale)
+        self.__stats.drugs_info = {item[0]: [item[1], drugs_ordered[item[0]], stats_from_store[item[0]]]
+                                   for item in new_prices.items()}
 
     def __proc_recurring_orders(self):
         orders = []
@@ -357,7 +370,7 @@ class Pharmacy:
 
     def get_final_stats(self):
         stat = FinalStat()
-        stat.delivered_history = self.__delivered_history
+        stat.delivered_history = self.__to_deliver_history
         stat.courier_max_load = self.__courier_max_load
         stat.total_profit = self.__total_profit
         stat.total_lost = self.__lost_shelf_life
@@ -374,17 +387,20 @@ class Pharmacy:
             drug_info = self.__drug_info_list[drug]
             drug_info.cur_price = drug_info.base_price * drug_info.base_profit
             drug_info.cur_profit = drug_info.base_profit
+        return {item[0]: item[1].cur_price for item in self.__drug_info_list.items()}
 
     def __process_orders(self, orders):
         ready_orders = []
+        drugs_ordered = {drug_name:0 for drug_name in self.__drug_info_list.keys()}
         for order in orders:
             order_base_income = 0
             order_cur_income = 0
             order_sale = 0.0
             for drug in order.drugs.items():
-                avail_num = self.__get_drug_from_store(drug[0], drug[1])
+                drug_name = drug[0]
+                drugs_ordered[drug_name] += drug[1]
+                avail_num = self.__get_drug_from_store(drug_name, drug[1])
                 if avail_num > 0:
-                    drug_name = drug[0]
                     base_price = self.__drug_info_list[drug_name].base_price
                     cur_price = self.__drug_info_list[drug_name].cur_price
                     order_base_income += avail_num * base_price
@@ -404,7 +420,7 @@ class Pharmacy:
 
             if order_cur_income != 0:
                 ready_orders.append(order)
-        return ready_orders
+        return ready_orders, drugs_ordered
 
     def __check_store(self):
         add_sale_names = []
@@ -450,5 +466,3 @@ class Pharmacy:
                 cur_batch.quantity -= from_cur_batch
             total += from_cur_batch
         return total
-
-
