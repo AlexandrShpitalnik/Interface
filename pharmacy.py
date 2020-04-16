@@ -470,7 +470,7 @@ class Pharmacy:
 
     def __process_orders(self, orders):
         ready_orders = []
-        drugs_ordered = {drug_name:0 for drug_name in self.__drug_info_list.keys()}
+        drugs_ordered = {drug_name: 0 for drug_name in self.__drug_info_list.keys()}
         for order in orders:
             order_base_income = 0
             order_cur_income = 0

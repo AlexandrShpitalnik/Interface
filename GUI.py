@@ -10,6 +10,7 @@ class UserParams:
         self.quant_to_reorder = 0
         self.n_days = 0
 
+
 class GUI(toga.App):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -176,7 +177,6 @@ class GUI(toga.App):
                 self.create_tmp_stat()
 
         def __to_end_button_handler(widget):
-
 
             params = UserParams()
 
