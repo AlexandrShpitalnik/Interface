@@ -71,7 +71,7 @@ class Randomizer:
         self.__order_scale = order_scale
 
     def init_params(self, prices, profits):
-        """initialize parameters todo"""
+        """initialize parameters from main"""
         self.__profits = profits
         self.__base_prices = prices
 
