@@ -2,6 +2,14 @@ import toga
 from toga.style.pack import *
 
 
+class UserParams:
+    def __init__(self):
+        self.orders_scale = 0
+        self.couriers = 0
+        self.card_sale = 0
+        self.quant_to_reorder = 0
+        self.n_days = 0
+
 class GUI(toga.App):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -150,10 +158,10 @@ class GUI(toga.App):
         main_box.add(n_to_reorder_box)
 
         def __start_button_handler(widget):
-            class Params:
+            class UserParams:
                 pass
 
-            params = Params()
+            params = UserParams()
 
             if not self.input_flag:
                 self.input_flag = True
@@ -168,10 +176,9 @@ class GUI(toga.App):
                 self.create_tmp_stat()
 
         def __to_end_button_handler(widget):
-            class Params:
-                pass
 
-            params = Params()
+
+            params = UserParams()
 
             if not self.input_flag:
                 self.input_flag = True

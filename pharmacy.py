@@ -2,9 +2,11 @@ import numpy as np
 import copy
 import csv
 
-from GUI import GUI
+from GUI import GUI, UserParams
+
 
 class ClientOrder:
+    """structure for client order information"""
     def __init__(self, meta, card_id, drugs, loyal_client=False):
         self.client_name = meta[0]
         self.phone_number = meta[2]
@@ -17,16 +19,19 @@ class ClientOrder:
 
 
 class RecurringOrder:
+    """class for repeating orders"""
     def __init__(self, meta, card_id, drugs, period):
         self.__client_order = ClientOrder(meta, card_id, drugs, True)
         self.period = period
         self.last_order = None
 
     def get_client_order(self):
+        """return copy of client order"""
         return copy.deepcopy(self.__client_order)
 
 
 class DrugInfo:
+    """structure for information about drug(for pharmacy class)"""
     def __init__(self, params):
         self.name = params[0]
         self.group = ""
@@ -41,6 +46,7 @@ class DrugInfo:
 
 
 class DrugBatch:
+    """class to check shelf-life of the drug on the store"""
     def __init__(self, drug_name, quantity, valid_to):
         self.drug_name = drug_name
         self.valid_to = valid_to
@@ -48,6 +54,7 @@ class DrugBatch:
 
 
 class Randomizer:
+    """class for generation random orders and"""
     def __init__(self):
         self.__base_prices = []
         self.__profits = []
@@ -60,16 +67,25 @@ class Randomizer:
         self.__order_scale = None
 
     def init_user_params(self, order_scale):
+        """initialize parameters from user interface"""
         self.__order_scale = order_scale
 
     def init_params(self, prices, profits):
+        """initialize parameters todo"""
         self.__profits = profits
         self.__base_prices = prices
 
     def update_profits(self, new_profits):
+        """set pharmacy profits for drugs; use them for further generation"""
         self.__profits = new_profits
 
-    def __price_to_clients(self, x):
+    def __generate_purchases(self, x):
+        """
+        generate purchases average num for a drug
+
+        :param list[int,int] x: [drug price, drug markup]
+        :return: float average purchases
+        """
         price = x[0]
         profit = x[1]
         arg = price * (profit ** 2)
@@ -78,51 +94,86 @@ class Randomizer:
         return res
 
     def start_new_day(self):
-        average_boughts = np.apply_along_axis(self.__price_to_clients, axis=0, arr=[self.__base_prices, self.__profits])
-        bought_drugs = np.random.poisson(average_boughts)
+        """
+        generate list of orders parameters for a new day
+
+        :return: List[((str, str, str), int, dict)] - [((name, address, phone_number), card_id, ordered_drugs)]
+        """
+        average_purchases = np.apply_along_axis(self.__generate_purchases, axis=0,
+                                                arr=[self.__base_prices, self.__profits])
+        purchase_drugs = np.random.poisson(average_purchases)
         generated_orders_info = []
         while True:
-            meta, card_id, ordered_drugs_ids = self.__generate_order_info(bought_drugs)
+            meta, card_id, ordered_drugs_ids = self.__generate_order_info(purchase_drugs)
             if ordered_drugs_ids:
                 generated_orders_info.append((meta, card_id, ordered_drugs_ids))
             else:
                 break
         return generated_orders_info
 
-    def __generate_order_info(self, bought_drugs):
+    def __generate_order_info(self, purchase_drugs):
+        """
+        generate order parameters
+
+        :param list[int] purchase_drugs: average purchase of drugs today
+        :return: Tuple((str, str, str), int, dict) - ((name, address, phone_number), card_id, ordered_drugs)
+        """
         meta = self.__generate_meta()
         card_id = self.__generate_card_id()
         ordered_drugs_ids = {}
         n_drugs_in_order = round(np.random.normal(self.__average_drugs_in_order, self.__order_var))
         i = 0
-        while np.sum(bought_drugs) != 0 and i < n_drugs_in_order:
+        while np.sum(purchase_drugs) != 0 and i < n_drugs_in_order:
             i += 1
-            drugs_proba = bought_drugs / np.sum(bought_drugs)
+            drugs_proba = purchase_drugs / np.sum(purchase_drugs)
             drug_id = np.random.choice(len(self.__base_prices), p=drugs_proba)
             if drug_id in ordered_drugs_ids:
                 ordered_drugs_ids[drug_id] += 1
             else:
                 ordered_drugs_ids[drug_id] = 1
-            bought_drugs[drug_id] -= 1
+            purchase_drugs[drug_id] -= 1
 
         return meta, card_id, ordered_drugs_ids
 
     def __generate_card_id(self):
+        """
+        generate random card id or None (with given probability)
+
+        :return: int: card id or None
+        """
         if np.random.binomial(1, self.__card_proba):
             return np.random.randint(1, self.__max_card_id)
         return None
 
     def __generate_meta(self):
+        """
+        redundant function for pharmacy emulation
+
+        :return: (str, str, str): (name, address, phone_number)
+        """
         # todo add true generation
-        # (name, address, phone_number)
         return 'A', 'B', 'C'
 
     def generate_waiting_time(self):
+        """
+        generates random waiting time for new drugs for pharmacy
+
+        :return: int: waiting time (days)
+        """
         return round(np.random.uniform(self.__min_wainting_time, self.__max_waiting_time))
 
 
 class Env:
+    """
+    class for environment emulation
+    """
     def __init__(self, GUI, randomizer_cls, drugs_file, orders_file):
+        """
+        :param GUI: interface
+        :param randomizer_cls: randomizer class
+        :param str drugs_file: file with drugs
+        :param str orders_file:  file with repeation orders
+        """
         self.GUI = GUI
         self.__drugs_names = []
         names, prices, profits, quants, life = self.__load_drugs_info(drugs_file)
@@ -137,7 +188,11 @@ class Env:
         self.pharmacy_orders_queue = []
 
     def init_user_parameters(self, params):
-        # card_proba = params.card_proba
+        """
+        init params from user interface
+
+        :param  UserParams params: from gui
+        """
         orders_scale = params.orders_scale
         couriers = params.couriers
         card_sale = params.card_sale
@@ -147,6 +202,11 @@ class Env:
         self.pharmacy.init_user_params(couriers, card_sale, quant_to_reorder)
 
     def __load_drugs_info(self, filename):
+        """
+        open and parse file with drug information
+        :param str filename:
+        :return: Tuple:(List[names], List[prices], List[profits], List[quants], List[lifes])
+        """
         names = []
         prices = []
         profits = []
@@ -167,6 +227,7 @@ class Env:
         return names, prices, profits, quants, life
 
     def __load_orders_info(self, filename):
+        """load info about repeating orders"""
         orders = []
         with open(filename) as file:
             reader = csv.reader(file, delimiter=';')
@@ -187,6 +248,7 @@ class Env:
         return orders
 
     def __generate_client_orders(self):
+        """for new day generate list of client orders"""
         orders_list = []
         generated_info_list = self.randomizer.start_new_day()
         for meta, card_id, drugs_ids in generated_info_list:
@@ -197,6 +259,7 @@ class Env:
         return orders_list
 
     def __daily_routine(self):
+        """do usual daily generations and interact with pharmacy"""
         delivered_drugs = []
         while self.pharmacy_orders_queue != [] and self.pharmacy_orders_queue[0][0] == self.cur_day:
             delivered_order = self.pharmacy_orders_queue.pop(0)[1]
@@ -219,6 +282,10 @@ class Env:
         return stats
 
     def start_next_day(self, no_tmp=False):
+        """
+        start emulation day by day
+        :param bool no_tmp: flag - don't temporary statistic after each day
+        """
         if not no_tmp:
             if self.cur_day < self.n_days:
                 stats = self.__daily_routine()
@@ -237,11 +304,13 @@ class Env:
 
 
 class PharmacyOrder:
+    """struct: order from pharmacy for more drugs"""
     def __init__(self, drug):
         self.drug = drug
 
 
 class DailyStat:
+    """struct: daily statistics from pharmacy to GUI"""
     def __init__(self):
         self.cur_day = 0
         self.drugs_at_store = {}
@@ -251,6 +320,7 @@ class DailyStat:
 
 
 class FinalStat:
+    """struct: final statistics after last day from pharmacy to GUI"""
     def __init__(self):
         self.total_profit = 0
         self.total_lost = 0
@@ -259,6 +329,7 @@ class FinalStat:
 
 
 class Pharmacy:
+    """class emulating pharmacy"""
     def __init__(self, names, base_prices, profits, quant, lifes, recurring_params):
         self.__drug_info_list = {}
         for drug_info in zip(names, base_prices, profits, quant, lifes):
@@ -290,12 +361,14 @@ class Pharmacy:
         self.__total_profit = 0
 
     def init_user_params(self, couriers, card_sale, quant_to_reorder):
+        """init parameters from GUI"""
         self.__couriers = couriers
         self.__card_sale = card_sale
         self.__min_quant_to_reorder = quant_to_reorder
         self.__courier_max_load = self.__couriers * self.__max_courier_orders
 
     def __init_store(self):
+        """initialize store and prepare for emulation run"""
         for drug_info in self.__drug_info_list.items():
             name = drug_info[0]
             quant = drug_info[1].standard_quantity
@@ -303,7 +376,7 @@ class Pharmacy:
             self.__drug_store[name] = [DrugBatch(name, quant, valid_to)]
 
     def __init_recurring_orders(self, params_list):
-        # drugs;period;client;address;phone;id
+        """initialize repeating orders and """
         for params in params_list:
             meta = params[2:-1]
             card_id = params[-1]
@@ -312,13 +385,14 @@ class Pharmacy:
             self.__recurring_orders.append(RecurringOrder(meta, card_id, drugs, period))
 
     def get_profits(self):
+        """return updated markups"""
         prof = []
         for drug_info in self.__drug_info_list.values():
             prof.append(drug_info.cur_profit)
         return prof
 
     def new_day(self, client_orders):
-        # todo ret: stats, out_orders, new_prices
+        """start new day for pharmacy; do standard actions"""
         self.__stats = DailyStat()
         self.__stats.courier_max_load = self.__courier_max_load
         queue = client_orders[:]
@@ -345,6 +419,7 @@ class Pharmacy:
                                    for item in new_prices.items()}
 
     def __proc_recurring_orders(self):
+        """get orders from loyal clients"""
         orders = []
         for order in self.__recurring_orders:
             if order.last_order is None or self.__cur_day - order.last_order >= order.period:
@@ -353,11 +428,13 @@ class Pharmacy:
         return orders
 
     def get_drugs_orders(self):
+        """get orders from pharmacy (to deliver more drugs)"""
         ret = self.__orders_from_pharmacy
         self.__orders_from_pharmacy = None
         return ret
 
     def deliver_drugs(self, drug_names):
+        """deliver ordered drugs on pharmacy store"""
         for drug in drug_names:
             shelf_life = self.__drug_info_list[drug].shelf_life
             standard_quantity = self.__drug_info_list[drug].standard_quantity
@@ -366,6 +443,7 @@ class Pharmacy:
             self.__waiting_to_store.remove(drug)
 
     def get_statistic(self):
+        """get daily statistic"""
         return self.__stats
 
     def get_final_stats(self):
@@ -377,6 +455,7 @@ class Pharmacy:
         return stat
 
     def __update_prices(self, decrease_drugs, increase_drugs):
+        """update prices for drugs after this day"""
         # decrease prices
         for drug in decrease_drugs:
             drug_info = self.__drug_info_list[drug]
@@ -423,6 +502,7 @@ class Pharmacy:
         return ready_orders, drugs_ordered
 
     def __check_store(self):
+        """check store for overdue and running/ran out drugs"""
         add_sale_names = []
         remove_sale_names = []
         pharmacy_orders = []
@@ -455,6 +535,7 @@ class Pharmacy:
         return pharmacy_orders, add_sale_names, remove_sale_names, drugs_quant
 
     def __get_drug_from_store(self, name, needed):
+        """get needed drugs from store(if possible) old drugs goes first"""
         total = 0
         drug_batch_list = self.__drug_store[name]
         while drug_batch_list and total < needed:
